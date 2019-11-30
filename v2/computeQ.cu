@@ -51,42 +51,62 @@ __global__ void ComputeQKernel(int numK, int numX, struct kValues *kVals_d,
   float phi = 0.0f;
 
   float expArg, cosArg, sinArg;
-  int temp;
-  int nBlk = ((numK - 1) / KVALS_SH_SIZE) + 1;
 
-  for (int idx_o = 0; idx_o < nBlk; idx_o++) {
-    temp = threadIdx.x + (idx_o * KVALS_SH_SIZE);
+  for(int indexK=0; indexK<numK; indexK++){
+    expArg = PIx2 * (kVals_d[indexK].Kx * x_l +
+                    kVals_d[indexK].Ky * y_l +
+                    kVals_d[indexK].Kz * z_l);
 
-    if (temp < numK) {
-      sh_kValues[threadIdx.x].Kx = kVals_d[temp].Kx;
-      sh_kValues[threadIdx.x].Ky = kVals_d[temp].Ky;
-      sh_kValues[threadIdx.x].Kz = kVals_d[temp].Kz;
-      sh_kValues[threadIdx.x].PhiMag = kVals_d[temp].PhiMag;
-    } else {
-      sh_kValues[threadIdx.x].Kx = 0;
-      sh_kValues[threadIdx.x].Ky = 0;
-      sh_kValues[threadIdx.x].Kz = 0;
-      sh_kValues[threadIdx.x].PhiMag = 0;
-    }
-    __syncthreads();
+    cosArg = cos(expArg);
+    sinArg = sin(expArg);
 
-    for (int idx = 0; idx < KVALS_SH_SIZE; idx++) {
-      expArg = PIx2 * (sh_kValues[idx].Kx * x_l +
-                       sh_kValues[idx].Ky * y_l +
-                       sh_kValues[idx].Kz * z_l);
-
-      cosArg = cos(expArg);
-      sinArg = sin(expArg);
-
-      phi = sh_kValues[idx].PhiMag;
-      Qracc += phi * cosArg;
-      Qiacc += phi * sinArg;
-    }
-    __syncthreads();
+    float phi = kVals_d[indexK].PhiMag;
+    Qracc += phi * cosArg;
+    Qiacc += phi * sinArg;
   }
 
   Qr_d[t] = Qracc;
   Qi_d[t] = Qiacc;
+
+  // -----
+
+  // float expArg, cosArg, sinArg;
+  // int temp;
+  // int nBlk = ((numK - 1) / KVALS_SH_SIZE) + 1;
+
+  // for (int idx_o = 0; idx_o < nBlk; idx_o++) {
+  //   temp = threadIdx.x + (idx_o * KVALS_SH_SIZE);
+
+  //   if (temp < numK) {
+  //     sh_kValues[threadIdx.x].Kx = kVals_d[temp].Kx;
+  //     sh_kValues[threadIdx.x].Ky = kVals_d[temp].Ky;
+  //     sh_kValues[threadIdx.x].Kz = kVals_d[temp].Kz;
+  //     sh_kValues[threadIdx.x].PhiMag = kVals_d[temp].PhiMag;
+  //   } else {
+  //     sh_kValues[threadIdx.x].Kx = 0;
+  //     sh_kValues[threadIdx.x].Ky = 0;
+  //     sh_kValues[threadIdx.x].Kz = 0;
+  //     sh_kValues[threadIdx.x].PhiMag = 0;
+  //   }
+  //   __syncthreads();
+
+  //   for (int idx = 0; idx < KVALS_SH_SIZE; idx++) {
+  //     expArg = PIx2 * (sh_kValues[idx].Kx * x_l +
+  //                      sh_kValues[idx].Ky * y_l +
+  //                      sh_kValues[idx].Kz * z_l);
+
+  //     cosArg = cos(expArg);
+  //     sinArg = sin(expArg);
+
+  //     phi = sh_kValues[idx].PhiMag;
+  //     Qracc += phi * cosArg;
+  //     Qiacc += phi * sinArg;
+  //   }
+  //   __syncthreads();
+  // }
+
+  // Qr_d[t] = Qracc;
+  // Qi_d[t] = Qiacc;
 
 }
 

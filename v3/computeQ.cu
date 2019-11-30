@@ -12,8 +12,6 @@
 #define MIN(X,Y) ((X) < (Y) ? (X) : (Y))
 #define K_ELEMS_PER_GRID 2048
 
-#define PROJECT_DEF 1
-
 struct kValues {
   float Kx;
   float Ky;
@@ -21,9 +19,8 @@ struct kValues {
   float PhiMag;
 };
 
-#define BLOCK_SIZE 512
-#define K_VALS_GRID_SIZE (BLOCK_SIZE * 4)
-__constant__ __device__ kValues const_kValues[K_VALS_GRID_SIZE];
+#define BLOCK_SIZE 128
+#define KVALS_SH_SIZE BLOCK_SIZE
 
 __global__ void ComputePhiMagKernel(int numK, float *phiR, float *phiI, float *phiMag){
   int t = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -34,7 +31,7 @@ __global__ void ComputePhiMagKernel(int numK, float *phiR, float *phiI, float *p
   }
 }
 
-__global__ void ComputeQKernel(int numK, int numX,
+__global__ void ComputeQKernel(int numK, int numX, struct kValues *kVals_d,
                                float *x_d, float *y_d, float *z_d,
                                float *Qr_d, float *Qi_d)
 {
@@ -43,6 +40,9 @@ __global__ void ComputeQKernel(int numK, int numX,
   if (t >= numX)
     return;
 
+  // use shared memory
+  __shared__ struct kValues sh_kValues[KVALS_SH_SIZE];
+
   float x_l = x_d[t];
   float y_l = y_d[t];
   float z_l = z_d[t];
@@ -50,61 +50,66 @@ __global__ void ComputeQKernel(int numK, int numX,
   float Qiacc = 0.0f;
   float phi = 0.0f;
 
-  float expArg;
-  int idx = 0;
+  float expArg, cosArg, sinArg;
+  int temp;
+  int nBlk = ((numK - 1) / KVALS_SH_SIZE) + 1;
 
-  for (; idx < numK; idx++) {
-    /* using thread coarsening technique */
-    expArg = PIx2 * (const_kValues[idx].Kx * x_l +
-                     const_kValues[idx].Ky * y_l +
-                     const_kValues[idx].Kz * z_l);
+  for (int idx_o = 0; idx_o < nBlk; idx_o++) {
+    temp = threadIdx.x + (idx_o * KVALS_SH_SIZE);
 
-    phi = const_kValues[idx].PhiMag;
+    if (temp < numK) {
+      sh_kValues[threadIdx.x].Kx = kVals_d[temp].Kx;
+      sh_kValues[threadIdx.x].Ky = kVals_d[temp].Ky;
+      sh_kValues[threadIdx.x].Kz = kVals_d[temp].Kz;
+      sh_kValues[threadIdx.x].PhiMag = kVals_d[temp].PhiMag;
+    } else {
+      sh_kValues[threadIdx.x].Kx = 0;
+      sh_kValues[threadIdx.x].Ky = 0;
+      sh_kValues[threadIdx.x].Kz = 0;
+      sh_kValues[threadIdx.x].PhiMag = 0;
+    }
+    __syncthreads();
 
-    Qracc += phi * cos(expArg);
-    Qiacc += phi * sin(expArg);
+    for (int idx = 0; idx < KVALS_SH_SIZE; idx++) {
+      expArg = PIx2 * (sh_kValues[idx].Kx * x_l +
+                       sh_kValues[idx].Ky * y_l +
+                       sh_kValues[idx].Kz * z_l);
+
+      cosArg = cos(expArg);
+      sinArg = sin(expArg);
+
+      phi = sh_kValues[idx].PhiMag;
+      Qracc += phi * cosArg;
+      Qiacc += phi * sinArg;
+    }
+    __syncthreads();
   }
 
-  Qr_d[t] += Qracc;
-  Qi_d[t] += Qiacc;
+  Qr_d[t] = Qracc;
+  Qi_d[t] = Qiacc;
+
 }
 
 void ComputePhiMagGPU(int numK, float* phiR_d, float* phiI_d,
                       float* phiMag_d)
 {
-  unsigned int numBlocks = ((numK - 1) / BLOCK_SIZE) + 1;
+  int numBlocks = ((numK - 1) / BLOCK_SIZE) + 1;
   dim3 dimGrid(numBlocks, 1, 1);
   dim3 dimBlock(BLOCK_SIZE, 1, 1);
 
+  /*printf("PhiMag numBlocks : %d\n", numBlocks);*/
   ComputePhiMagKernel<<<dimGrid, dimBlock>>>(numK, phiR_d, phiI_d, phiMag_d);
 }
 
-void ComputeQGPU(int numK, int numX, struct kValues *kVals,
+void ComputeQGPU(int numK, int numX, struct kValues *kVals_d,
                  float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d)
 {
-  unsigned int size_to_cover = K_VALS_GRID_SIZE;
-  unsigned int n_iter = ((numK - 1) / K_VALS_GRID_SIZE) + 1;
-  struct kValues *ptr = kVals;
-
-  unsigned int numBlocks = ((numX - 1) / BLOCK_SIZE) + 1;
+  int numBlocks = ((numX - 1) / BLOCK_SIZE) + 1;
   dim3 dimGrid(numBlocks, 1, 1);
   dim3 dimBlock(BLOCK_SIZE, 1, 1);
 
-  //printf("size : %d\n", sizeof(struct kValues));
-
-  for (int iter = 0; iter < n_iter; iter++) {
-    size_to_cover = MIN(K_VALS_GRID_SIZE, numK - (iter * K_VALS_GRID_SIZE));
-    //printf("size to cover:%d, iter:%d, ptr:%u\n", size_to_cover, iter, ptr);
-    if (size_to_cover) {
-        cudaMemcpyToSymbol(const_kValues, ptr, size_to_cover * sizeof(struct kValues), 0);
-        ComputeQKernel<<<dimGrid, dimBlock>>>(size_to_cover, numX, x_d, y_d, z_d, Qr_d, Qi_d);
-        if (cudaSuccess != cudaDeviceSynchronize()) {
-            printf("iter: %d ERROR!!!!!!\n", iter);
-        }
-    }
-    ptr += size_to_cover;
-  }
-
+  /*printf("Q numBlocks : %d\n", numBlocks);*/
+  ComputeQKernel<<<dimGrid, dimBlock>>>(numK, numX, kVals_d, x_d, y_d, z_d, Qr_d, Qi_d);
 }
 
 void createDataStructsCPU(int numK, int numX, float** phiMag,

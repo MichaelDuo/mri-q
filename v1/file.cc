@@ -26,10 +26,10 @@ void inputData(char* fName, int* _numK, int* _numX,
   FILE* fid = fopen(fName, "r");
 
   if (fid == NULL)
-  {
-    fprintf(stderr, "Cannot open input file\n");
-    exit(-1);
-  }
+    {
+      fprintf(stderr, "Cannot open input file\n");
+      exit(-1);
+    }
   fread (&numK, sizeof (int), 1, fid);
   *_numK = numK;
   fread (&numX, sizeof (int), 1, fid);
@@ -50,7 +50,7 @@ void inputData(char* fName, int* _numK, int* _numX,
   fread (*phiR, sizeof (float), numK, fid);
   *phiI = (float *) memalign(16, numK * sizeof (float));
   fread (*phiI, sizeof (float), numK, fid);
-  fclose (fid);
+  fclose (fid); 
 }
 
 extern "C"
@@ -60,10 +60,10 @@ void outputData(char* fName, float* outR, float* outI, int numX)
   uint32_t tmp32;
 
   if (fid == NULL)
-  {
-    fprintf(stderr, "Cannot open output file\n");
-    exit(-1);
-  }
+    {
+      fprintf(stderr, "Cannot open output file\n");
+      exit(-1);
+    }
 
   /* Write the data size */
   tmp32 = numX;

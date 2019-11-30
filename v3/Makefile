@@ -11,7 +11,6 @@ NVCC_FLAGS   = -O3 -I/usr/local/cuda/include
 LD_FLAGS     = -lcudart -L/usr/local/cuda/lib64
 PTXAS_FLAGS  = --ptxas-options=--verbose
 
-
 LANGUAGE=cuda
 
 default: $(EXE)

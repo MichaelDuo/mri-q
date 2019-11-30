@@ -57,6 +57,7 @@ int main (int argc, char *argv[])
   float *phiR_d, *phiI_d, *phiMag_d;
   float *Qr_d, *Qi_d;
   float *x_d, *y_d, *z_d;
+  struct kValues *kVals_d;
 
   struct pb_Parameters *params;
   struct pb_TimerSet timers;
@@ -110,13 +111,13 @@ int main (int argc, char *argv[])
 
   pb_SwitchToTimer(&timers, pb_TimerID_COPY);
 
-  /* Allocating memory on GPU */
+  // allocating
   cudaMalloc((void** )&phiR_d, sizeof(float) * numK);
   cudaMalloc((void** )&phiI_d, sizeof(float) * numK);
   cudaMalloc((void** )&phiMag_d, sizeof(float) * numK);
   cudaDeviceSynchronize();
 
-  /* Copying local data to GPU */
+  // copy data
   cudaMemcpy(phiR_d, phiR, sizeof(float) * numK, cudaMemcpyHostToDevice);
   cudaMemcpy(phiI_d, phiI, sizeof(float) * numK, cudaMemcpyHostToDevice);
 
@@ -161,12 +162,14 @@ int main (int argc, char *argv[])
   cudaMalloc((void** )&x_d, sizeof(float) * numX);
   cudaMalloc((void** )&y_d, sizeof(float) * numX);
   cudaMalloc((void** )&z_d, sizeof(float) * numX);
+  cudaMalloc((void** )&kVals_d, sizeof(struct kValues) * numK);
   cudaDeviceSynchronize();
 
   /* Copying local data to GPU */
   cudaMemcpy(x_d, x, sizeof(float) * numX, cudaMemcpyHostToDevice);
   cudaMemcpy(y_d, y, sizeof(float) * numX, cudaMemcpyHostToDevice);
   cudaMemcpy(z_d, z, sizeof(float) * numX, cudaMemcpyHostToDevice);
+  cudaMemcpy(kVals_d, kVals, sizeof(struct kValues) * numK, cudaMemcpyHostToDevice);
 
   /* Initializing data on GPU */
   cudaMemset(Qr_d, 0, sizeof(float) * numX);
@@ -176,7 +179,7 @@ int main (int argc, char *argv[])
   pb_SwitchToTimer(&timers, pb_TimerID_KERNEL);
 
   /* Compute on GPU */
-  ComputeQGPU(numK, numX, kVals, x_d, y_d, z_d, Qr_d, Qi_d);
+  ComputeQGPU(numK, numX, kVals_d, x_d, y_d, z_d, Qr_d, Qi_d);
   cudaDeviceSynchronize();
 
   pb_SwitchToTimer(&timers, pb_TimerID_COPY);
@@ -187,12 +190,12 @@ int main (int argc, char *argv[])
   cudaDeviceSynchronize();
 
   /* Freeing up no longer needed memory on GPU */
+  cudaFree(kVals_d);
   cudaFree(z_d);
   cudaFree(y_d);
   cudaFree(x_d);
   cudaFree(Qi_d);
   cudaFree(Qr_d);
-  cudaDeviceSynchronize();
   cudaDeviceReset();
 
   if (params->outFile)
@@ -202,7 +205,6 @@ int main (int argc, char *argv[])
     outputData(params->outFile, Qr, Qi, numX);
     pb_SwitchToTimer(&timers, pb_TimerID_COMPUTE);
   }
-
 
   free (kx);
   free (ky);

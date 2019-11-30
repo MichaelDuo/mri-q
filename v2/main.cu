@@ -178,18 +178,17 @@ int main (int argc, char *argv[])
 
   pb_SwitchToTimer(&timers, pb_TimerID_KERNEL);
 
-  /* Compute on GPU */
+  // Kernel computation
   ComputeQGPU(numK, numX, kVals_d, x_d, y_d, z_d, Qr_d, Qi_d);
   cudaDeviceSynchronize();
 
   pb_SwitchToTimer(&timers, pb_TimerID_COPY);
 
-  /* Copying GPU data to local memory */
+  // Copy back from device
   cudaMemcpy(Qr, Qr_d, sizeof(float) * numX, cudaMemcpyDeviceToHost);
   cudaMemcpy(Qi, Qi_d, sizeof(float) * numX, cudaMemcpyDeviceToHost);
   cudaDeviceSynchronize();
 
-  /* Freeing up no longer needed memory on GPU */
   cudaFree(kVals_d);
   cudaFree(z_d);
   cudaFree(y_d);
