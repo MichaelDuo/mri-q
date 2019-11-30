@@ -103,21 +103,15 @@
  
    pb_SwitchToTimer(&timers, pb_TimerID_COMPUTE);
  
-   /* Create CPU data structures */
    createDataStructsCPU(numK, numX, &phiMag, &Qr, &Qi);
- 
-   cudaError_t cuda_ret;
- 
+  
    cudaSetDevice(1);
  
    pb_SwitchToTimer(&timers, pb_TimerID_COPY);
-   /* Allocating memory on GPU */
-   cuda_ret = cudaMalloc((void** )&phiR_d, sizeof(float) * numK);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&phiI_d, sizeof(float) * numK);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&phiMag_d, sizeof(float) * numK);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
+   // Allocating memory
+   cudaMalloc((void** )&phiR_d, sizeof(float) * numK);
+   cudaMalloc((void** )&phiI_d, sizeof(float) * numK);
+   cudaMalloc((void** )&phiMag_d, sizeof(float) * numK);
    cudaDeviceSynchronize();
  
      /* Allocate pinned memory */
@@ -147,8 +141,7 @@
  
      /* Create CUDA streams */
      for (i = 0; i < n_streams_phimag; i++) {
-       cuda_ret = cudaStreamCreate(&stream[i]);
-       if(cuda_ret != cudaSuccess) FATAL("Unable to create CUDA streams");
+       cudaStreamCreate(&stream[i]);
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_COPY_ASYNC);
@@ -156,18 +149,12 @@
      for (n = 0; n < n_streams_phimag; n++) {
        offset = n * stream_size;
  
-       cuda_ret = cudaMemcpyAsync(&phiR_d[offset], &phiR_p[offset],
+       cudaMemcpyAsync(&phiR_d[offset], &phiR_p[offset],
          sizeof(float) * stream_size, cudaMemcpyHostToDevice);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory to the device asynchronously");
-       cuda_ret = cudaMemcpyAsync(&phiI_d[offset], &phiI_p[offset],
+       cudaMemcpyAsync(&phiI_d[offset], &phiI_p[offset],
          sizeof(float) * stream_size, cudaMemcpyHostToDevice);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory to the device asynchronously");
-       cuda_ret = cudaMemsetAsync(&phiMag_d[offset], 0,
+       cudaMemsetAsync(&phiMag_d[offset], 0,
          sizeof(float) * stream_size, stream[n]);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to set device memory asynchronously");
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_KERNEL);
@@ -183,10 +170,8 @@
      for (n = 0; n < n_streams_phimag; n++) {
        offset = n * stream_size;
  
-       cuda_ret = cudaMemcpyAsync(&phiMag_p[offset], &phiMag_d[offset],
+       cudaMemcpyAsync(&phiMag_p[offset], &phiMag_d[offset],
          sizeof(float) * stream_size, cudaMemcpyDeviceToHost);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory from the device asynchronously");
      }
  
      /* Wait for all streams to finish */
@@ -194,8 +179,7 @@
  
      /* Delete the streams */
      for (i = 0; i < n_streams_phimag; i++) {
-       cuda_ret = cudaStreamDestroy(stream[i]);
-       if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to the device");
+       cudaStreamDestroy(stream[i]);
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_COPY);
@@ -208,12 +192,9 @@
      pb_SwitchToTimer(&timers, pb_TimerID_COPY);
  
    /* Freeing up no longer needed memory on GPU */
-   cuda_ret = cudaFree(phiMag_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory on the device");
-   cuda_ret = cudaFree(phiI_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory on the device");
-   cuda_ret = cudaFree(phiR_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory on the device");
+   cudaFree(phiMag_d);
+   cudaFree(phiI_d);
+   cudaFree(phiR_d);
    cudaDeviceSynchronize();
  
    pb_SwitchToTimer(&timers, pb_TimerID_COMPUTE);
@@ -230,16 +211,11 @@
    pb_SwitchToTimer(&timers, pb_TimerID_COPY);
  
    /* Allocating memory on GPU */
-   cuda_ret = cudaMalloc((void** )&Qr_d, sizeof(float) * numX);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&Qi_d, sizeof(float) * numX);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&x_d, sizeof(float) * numX);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&y_d, sizeof(float) * numX);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-   cuda_ret = cudaMalloc((void** )&z_d, sizeof(float) * numX);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
+   cudaMalloc((void** )&Qr_d, sizeof(float) * numX);
+   cudaMalloc((void** )&Qi_d, sizeof(float) * numX);
+   cudaMalloc((void** )&x_d, sizeof(float) * numX);
+   cudaMalloc((void** )&y_d, sizeof(float) * numX);
+   cudaMalloc((void** )&z_d, sizeof(float) * numX);
    cudaDeviceSynchronize();
  
    {
@@ -261,14 +237,13 @@
  
      int n = 0, i = 0;
      unsigned int offset = 0;
-     const unsigned int n_streams_q = 8;
+     const unsigned int n_streams_q = 4;
      const unsigned int stream_size = ceil(numX / n_streams_q);
      cudaStream_t stream[n_streams_q];
  
      /* Create CUDA streams */
      for (i = 0; i < n_streams_q; i++) {
-       cuda_ret = cudaStreamCreate(&stream[i]);
-       if(cuda_ret != cudaSuccess) FATAL("Unable to create CUDA streams");
+       cudaStreamCreate(&stream[i]);
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_COPY_ASYNC);
@@ -276,26 +251,16 @@
      for (n = 0; n < n_streams_q; n++) {
        offset = n * stream_size;
  
-       cuda_ret = cudaMemcpy(&x_d[offset], &x_p[offset],
+       cudaMemcpy(&x_d[offset], &x_p[offset],
          sizeof(float) * stream_size, cudaMemcpyHostToDevice);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory to the device asynchronously");
-       cuda_ret = cudaMemcpy(&y_d[offset], &y_p[offset],
+       cudaMemcpy(&y_d[offset], &y_p[offset],
          sizeof(float) * stream_size, cudaMemcpyHostToDevice);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory to the device asynchronously");
-       cuda_ret = cudaMemcpy(&z_d[offset], &z_p[offset],
+       cudaMemcpy(&z_d[offset], &z_p[offset],
          sizeof(float) * stream_size, cudaMemcpyHostToDevice);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory to the device asynchronously");
-       cuda_ret = cudaMemsetAsync(&Qr_d[offset], 0,
+       cudaMemsetAsync(&Qr_d[offset], 0,
          sizeof(float) * stream_size, stream[n]);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to set device memory asynchronously");
-       cuda_ret = cudaMemsetAsync(&Qi_d[offset], 0,
+       cudaMemsetAsync(&Qi_d[offset], 0,
          sizeof(float) * stream_size, stream[n]);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to set device memory asynchronously");
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_KERNEL);
@@ -311,21 +276,16 @@
      for (n = 0; n < n_streams_q; n++) {
        offset = n * stream_size;
  
-       cuda_ret = cudaMemcpy(&Qr_p[offset], &Qr_d[offset],
+       cudaMemcpy(&Qr_p[offset], &Qr_d[offset],
          sizeof(float) * stream_size, cudaMemcpyDeviceToHost);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory from the device asynchronously");
-       cuda_ret = cudaMemcpy(&Qi_p[offset], &Qi_d[offset],
+       cudaMemcpy(&Qi_p[offset], &Qi_d[offset],
          sizeof(float) * stream_size, cudaMemcpyDeviceToHost);
-       if(cuda_ret != cudaSuccess)
-         FATAL("Unable to copy memory from the device asynchronously");
      }
      cudaDeviceSynchronize();
  
      /* Delete the streams */
      for (i = 0; i < n_streams_q; i++) {
-       cuda_ret = cudaStreamDestroy(stream[i]);
-       if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to the device");
+       cudaStreamDestroy(stream[i]);
      }
  
      pb_SwitchToTimer(&timers, pb_TimerID_COPY);
@@ -341,16 +301,11 @@
    } 
  
    /* Freeing up no longer needed memory on GPU */
-   cuda_ret = cudaFree(z_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory from the device");
-   cuda_ret = cudaFree(y_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory from the device");
-   cuda_ret = cudaFree(x_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory from the device");
-   cuda_ret = cudaFree(Qi_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory from the device");
-   cuda_ret = cudaFree(Qr_d);
-   if(cuda_ret != cudaSuccess) FATAL("Unable to free memory from the device");
+   cudaFree(z_d);
+   cudaFree(y_d);
+   cudaFree(x_d);
+   cudaFree(Qi_d);
+   cudaFree(Qr_d);
    cudaDeviceSynchronize();
    cudaDeviceReset();
  
