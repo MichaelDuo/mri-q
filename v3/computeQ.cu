@@ -31,16 +31,12 @@ __global__ void ComputePhiMagKernel(int numK, float *phiR, float *phiI, float *p
   }
 }
 
-__global__ void ComputeQKernel(int numK, int numX, struct kValues *kVals_d,
-                               float *x_d, float *y_d, float *z_d,
-                               float *Qr_d, float *Qi_d)
-{
+__global__ void ComputeQKernel(int numK, int numX, struct kValues *kVals_d, float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d) {
   unsigned int t = threadIdx.x + (blockIdx.x * blockDim.x);
 
   if (t >= numX)
     return;
 
-  // use shared memory
   __shared__ struct kValues sh_kValues[KVALS_SH_SIZE];
 
   float x_l = x_d[t];
@@ -87,7 +83,6 @@ __global__ void ComputeQKernel(int numK, int numX, struct kValues *kVals_d,
 
   Qr_d[t] = Qracc;
   Qi_d[t] = Qiacc;
-
 }
 
 void ComputePhiMagGPU(int numK, float* phiR_d, float* phiI_d,
@@ -101,14 +96,10 @@ void ComputePhiMagGPU(int numK, float* phiR_d, float* phiI_d,
   ComputePhiMagKernel<<<dimGrid, dimBlock>>>(numK, phiR_d, phiI_d, phiMag_d);
 }
 
-void ComputeQGPU(int numK, int numX, struct kValues *kVals_d,
-                 float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d)
-{
+void ComputeQGPU(int numK, int numX, struct kValues *kVals_d, float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d) {
   int numBlocks = ((numX - 1) / BLOCK_SIZE) + 1;
   dim3 dimGrid(numBlocks, 1, 1);
   dim3 dimBlock(BLOCK_SIZE, 1, 1);
-
-  /*printf("Q numBlocks : %d\n", numBlocks);*/
   ComputeQKernel<<<dimGrid, dimBlock>>>(numK, numX, kVals_d, x_d, y_d, z_d, Qr_d, Qi_d);
 }
 

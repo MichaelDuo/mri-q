@@ -34,10 +34,7 @@ __global__ void ComputePhiMagKernelAsync(int numK, float *phiR, float *phiI,
   }
 }
 
-__global__ void ComputeQKernelAsync(int numK, int numX,
-                                    float *x_d, float *y_d, float *z_d,
-                                    float *Qr_d, float *Qi_d, int offset)
-{
+__global__ void ComputeQKernelAsync(int numK, int numX, float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d, int offset) {
   unsigned int t = threadIdx.x + (blockIdx.x * blockDim.x);
 
   if (t >= numX)
@@ -54,7 +51,6 @@ __global__ void ComputeQKernelAsync(int numK, int numX,
   int idx = 0;
 
   for (; idx < numK; idx++) {
-    /* using thread coarsening technique */
     expArg = PIx2 * (const_kValues[idx].Kx * x_l +
                      const_kValues[idx].Ky * y_l +
                      const_kValues[idx].Kz * z_l);
@@ -67,7 +63,6 @@ __global__ void ComputeQKernelAsync(int numK, int numX,
 
   Qr_d[t + offset] += Qracc;
   Qi_d[t + offset] += Qiacc;
-
 }
 
 void ComputePhiMagGPUAsync(int numK, int streamSz, float* phiR_d, float* phiI_d,
@@ -107,7 +102,6 @@ void ComputeQGPUAsync(int numK, int streamSz, struct kValues *kVals,
     }
     kV_ptr += kV_size_to_cover;
   }
-
 }
 
 void createDataStructsCPU(int numK, int numX, float** phiMag,

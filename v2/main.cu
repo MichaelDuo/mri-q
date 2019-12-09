@@ -36,13 +36,6 @@
 #include "file.h"
 #include "computeQ.cu"
 
-#define FATAL(msg, ...) \
-    do {\
-        fprintf(stderr, "[%s:%d] "msg"\n", __FILE__, __LINE__, ##__VA_ARGS__);\
-        exit(-1);\
-    } while(0)
-
-
 int main (int argc, char *argv[])
 {
   int numX, numK;		/* Number of X and K values */

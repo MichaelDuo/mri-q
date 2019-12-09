@@ -32,9 +32,7 @@ ComputePhiMagCPU(int numK,
   }
 }
 
-inline
-void
-ComputeQCPU(int numK, int numX,
+inline void ComputeQCPU(int numK, int numX,
             struct kValues *kVals,
             float* x, float* y, float* z,
             float *__restrict__ Qr, float *__restrict__ Qi) {

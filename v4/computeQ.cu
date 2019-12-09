@@ -76,9 +76,7 @@ void ComputePhiMagGPU(int numK, float* phiR_d, float* phiI_d,
   ComputePhiMagKernel<<<dimGrid, dimBlock>>>(numK, phiR_d, phiI_d, phiMag_d);
 }
 
-void ComputeQGPU(int numK, int numX, struct kValues *kVals,
-                 float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d)
-{
+void ComputeQGPU(int numK, int numX, struct kValues *kVals, float *x_d, float *y_d, float *z_d, float *Qr_d, float *Qi_d) {
   unsigned int size_to_cover = K_VALS_BLOCK_SIZE;
   unsigned int n_iter = ((numK - 1) / K_VALS_BLOCK_SIZE) + 1;
   struct kValues *ptr = kVals;
@@ -96,7 +94,6 @@ void ComputeQGPU(int numK, int numX, struct kValues *kVals,
     }
     ptr += size_to_cover;
   }
-
 }
 
 void createDataStructsCPU(int numK, int numX, float** phiMag,
